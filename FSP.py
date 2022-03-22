@@ -213,6 +213,24 @@ class FlowShop:
             sequence = min(cands, key=lambda x: x[1])[0]
 
         return [i+1 for i in sequence], self.Cmax(self.M, sequence)
+    
+    def palmer_heuristic(self):
+
+        optimal_sequence=list(np.arange(0,self.N))
+        
+        #on calcule les poids des machines
+        weight_machine=np.zeros(self.M)
+        for j in np.arange(0,self.M):#on parcours les machines 
+            weight_machine[j]=(self.M-2*(j+1)+1)
+            
+        #on ordonne selon l'index de pente
+        weights=np.zeros(self.N)
+        for i in range(self.N):
+            for j in range(self.M):
+                weights[i]+=weight_machine[j]*self.data[j,i]
+        optimal_sequence=list(list(np.argsort(weights)+1))
+        optimal_time=self.Cmax(self.M,optimal_sequence)
+        return optimal_sequence,optimal_time    
 
 # Class Node qui représente un Job et ces caractéristiques (Niveau, Chemin, Evaluation)
 class Node(object):
