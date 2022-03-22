@@ -151,6 +151,45 @@ class FlowShop:
 
         return optimal_sequence, optimal_time
     
+    
+    # L'algorithme de Johnson (Appliqué qu'aux FSP avec 2 machines (Utilisé dans CDS))
+    def johnson(self, data):
+        # La séquence issu de la 1ere machine (Insertion au debut)
+        machine_1_sequence = [j for j in range(self.N) if data[0][j] <= data[1][j]]
+        machine_1_sequence.sort(key=lambda x: data[0][x])
+        
+        # La séquence issu de la 2eme machine (Insertion à la fin)
+        machine_2_sequence = [j for j in range(self.N) if data[0][j] > data[1][j]]
+        machine_2_sequence.sort(key=lambda x: data[1][x], reverse=True)
+        
+        # Regroupement des Jobs pour la construction de la sequence (On commence la numerotation à partir de 1)
+        seq = machine_1_sequence + machine_2_sequence
+        seq = np.array([j+1 for j in seq])
+        
+        return seq
+    
+    
+    # Recherche de la permutation aprochée par l'heuristique : CDS
+    def CDS(self):
+        
+        # Generation des (M-1) sequences
+        seq = []
+        for i in range(self.M-1):
+            m1 = m2 = np.zeros(self.N)
+            for j in range(i+1):
+                m1 = m1 + self.data[j, :]
+                m2 = m2 + self.data[self.M-1-j, :]
+            
+            # Recuperation de la permutation optimale pour chaque sequence (M1, M2) par l'algorithme de Johnson
+            seq.append(self.johnson(np.vstack((m1, m2))))
+        
+        # Choix de la permutation qui minimise Cmax
+        sigma = min(seq, key=lambda p: self.Cmax(self.M, p))
+        cmax = self.Cmax(self.M, sigma)
+       
+        return sigma, cmax
+    
+    
     # Recherche de la permutation aprochée par l'heuristique : NEH
     def NEH(self):
 
