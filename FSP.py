@@ -151,7 +151,7 @@ class FlowShop:
 
         return optimal_sequence, optimal_time
     
-    
+    # Recherche de la permutation aprochée par l'heuristique : NEH
     def NEH(self):
 
         sums_jobs = []
