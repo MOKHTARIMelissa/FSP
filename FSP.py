@@ -190,29 +190,30 @@ class FlowShop:
         return sigma, cmax
     
     
-    # Recherche de la permutation aprochée par l'heuristique : NEH
+    # Recherche de la permutation aprochée par l'heurestique : NEH
     def NEH(self):
-
         sums_jobs = []
+
         # Calculer la somme des durées d'éxecution de chaque job pour les m machines
         for job_id in range(self.N):
             sums_job = sum([self.data[j][job_id] for j in range(self.M)])
-            sums_jobs.append((job_id, sums_job))
-
+            sums_jobs.append((job_id+1, sums_job))
+        
         # Ordonner les jobs par en ordre décroissant par rapport à la somme déja calculée
-        sums_jobs.sort(key=lambda elem: elem[1], reverse=True)
-
-        # Obtenir la sequence optimale
+        sums_jobs.sort(key=lambda x: x[1], reverse=True)
+        
+        # Obtenir la sequence approchee
         sequence = []
         for job in sums_jobs:
             cands = []
             # Pour faire toutes les combainaisons possibles
             for i in range(0, len(sequence) + 1):
                 cand = sequence[:i] + [job[0]] + sequence[i:]
-                cands.append((cand, self.Cmax(self.M, [i+1 for i in cand])))
+                cands.append((cand, self.Cmax(self.M,cand)))
+            # Prendre la premiere sequence avec le Cmax minimum
             sequence = min(cands, key=lambda x: x[1])[0]
 
-        return [i+1 for i in sequence], self.Cmax(self.M, sequence)
+        return sequence, min(cands, key=lambda x: x[1])[1]
     
     def palmer_heuristic(self):
 
