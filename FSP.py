@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import random
+import math
+
 from collections import deque
 
 # Class FlowShop qui défint les méthodes de résolution du FSP
@@ -42,6 +45,25 @@ class FlowShop:
                 cmax[i,j] = max(cmax[i,j-1], cmax[i-1,j]) + self.data[i][int(sequence[j]) -1]
 
         return cmax[num_machine-1, len(sequence)-1]
+    
+    
+    # La fonction objective à minimiser - Programmation dynamique (On suppose la numérotation commence de 1)
+    def CtMatrix(self, sequence):
+        cmax = np.zeros(self.data.shape)
+
+        cmax[0,0] = self.data[0][int(sequence[0]) -1]
+
+        for i in range(1, self.M):
+            cmax[i,0] = cmax[i-1,0] + self.data[i][int(sequence[0]) -1]
+
+        for i in range(1,len(sequence)):
+            cmax[0,i] = cmax[0,i-1] + self.data[0][int(sequence[i]) -1]
+
+        for i in range(1, self.M):
+            for j in range(1,len(sequence)):
+                cmax[i,j] = max(cmax[i,j-1], cmax[i-1,j]) + self.data[i][int(sequence[j]) -1]
+
+        return cmax
         
 
     # La fonction d'evaluation (LB)
@@ -190,8 +212,8 @@ class FlowShop:
         return sigma, cmax
     
     
-    # Recherche de la permutation aprochée par l'heurestique : NEH
-    def NEH(self):
+     # Recherche de la permutation aprochée par l'heurestique : NEH
+    def NEH(self, order = True, pas = 1,  tie = "First"):
         sums_jobs = []
 
         # Calculer la somme des durées d'éxecution de chaque job pour les m machines
@@ -200,20 +222,83 @@ class FlowShop:
             sums_jobs.append((job_id+1, sums_job))
         
         # Ordonner les jobs par en ordre décroissant par rapport à la somme déja calculée
-        sums_jobs.sort(key=lambda x: x[1], reverse=True)
+        sums_jobs.sort(key=lambda x: x[1], reverse= order)
         
         # Obtenir la sequence approchee
         sequence = []
         for job in sums_jobs:
             cands = []
             # Pour faire toutes les combainaisons possibles
-            for i in range(0, len(sequence) + 1):
+            for i in range(0, len(sequence) + 1, pas):
                 cand = sequence[:i] + [job[0]] + sequence[i:]
                 cands.append((cand, self.Cmax(self.M,cand)))
             # Prendre la premiere sequence avec le Cmax minimum
-            sequence = min(cands, key=lambda x: x[1])[0]
+            if (tie == "Last") :
+                cands.reverse()
+                sequence = min(cands, key=lambda x: x[1])[0]
+            elif (tie == "Random") :
+                minimum = min(cands, key=lambda x: x[1])[1]
+                cands_min = [cand_min for i, cand_min in enumerate(cands) if cand_min[1] == minimum]
+                sequence = random.choice(cands_min)[0]
+            else:
+                sequence = min(cands, key=lambda x: x[1])[0]
 
         return sequence, min(cands, key=lambda x: x[1])[1]
+    
+    
+    def NEH_ameliore(self, order = True, pas = 1,  tie = "First"):
+        priority_jobs = []
+
+        # Calculer la somme des durées d'éxecution de chaque job pour les m machines
+        for job_id in range(self.N):
+            AVGi = sum([self.data[j][job_id] for j in range(self.M)]) / self.M
+            STDi = math.sqrt(sum([(self.data[j][job_id] - AVGi)**2 for j in range(self.M)]) / (self.M - 1))
+            SKEi = (sum([(self.data[j][job_id] - AVGi)**3 for j in range(self.M)]) / self.M) / (math.sqrt(sum([(self.data[j][job_id] - AVGi)**2 for j in range(self.M)]) / (self.M)) ** 3)
+            
+            PRSKEi = AVGi + STDi + abs(SKEi)
+            priority_jobs.append((job_id+1, PRSKEi))
+        
+        # Ordonner les jobs par en ordre décroissant par rapport à la somme déja calculée
+        priority_jobs.sort(key=lambda x: x[1], reverse= order)
+        
+        # Obtenir la sequence approchee
+        sequence = []
+        for job in priority_jobs:
+            cands = []
+            # Pour faire toutes les combainaisons possibles
+            for i in range(0, len(sequence) + 1, pas):
+                cand = sequence[:i] + [job[0]] + sequence[i:]
+                cands.append((cand, self.Cmax(self.M,cand)))
+            
+            if (tie == "Last"):
+                cands.reverse()
+                sequence = min(cands, key=lambda x: x[1])[0]
+
+            elif (tie == "Random"):
+                minimum = min(cands, key=lambda x: x[1])[1]
+                cands_min = [cand_min for i, cand_min in enumerate(cands) if cand_min[1] == minimum]
+                sequence = random.choice(cands_min)[0]
+
+            elif (tie == "KK2"):
+                a = np.sum([((self.M-1)*(self.M-2)/2 + self.M - j)*self.data[j-1][job[0]-1] for j in range(1,self.M+1)])
+                b = np.sum([((self.M-1)*(self.M-2)/2 + j - 1)*self.data[j-1][job[0]-1] for j in range(1,self.M+1)])
+                if (a >= b):
+                    sequence = min(cands, key=lambda x: x[1])[0]
+                else:
+                    cands.reverse()
+                    sequence = min(cands, key=lambda x: x[1])[0]
+
+            elif (tie == "SMM"):
+                minimum = min(cands, key=lambda x: x[1])[1]
+                mins = [v[0] for i, v in enumerate(cands) if v[1] == minimum]
+                SSMs = [(seq, np.mean(self.CtMatrix(seq)[:,len(seq)-1])) for seq in mins]
+                sequence = min(SSMs, key=lambda x: x[1])[0]
+
+            else: # tie == "First"
+                sequence = min(cands, key=lambda x: x[1])[0]
+
+        return sequence, min(cands, key=lambda x: x[1])[1]
+    
     
     def palmer_heuristic(self):
 
