@@ -174,6 +174,25 @@ class FlowShop:
         return optimal_sequence, optimal_time
     
     
+    def palmer_heuristic(self):
+
+        optimal_sequence=list(np.arange(0,self.N))
+        
+        #on calcule les poids des machines
+        weight_machine=np.zeros(self.M)
+        for j in np.arange(0,self.M):#on parcours les machines 
+            weight_machine[j]=(self.M-2*(j+1)+1)
+            
+        #on ordonne selon l'index de pente
+        weights=np.zeros(self.N)
+        for i in range(self.N):
+            for j in range(self.M):
+                weights[i]+=weight_machine[j]*self.data[j,i]
+        optimal_sequence=list(list(np.argsort(weights)+1))
+        optimal_time=self.Cmax(self.M,optimal_sequence)
+        return optimal_sequence,optimal_time  
+    
+    
     # L'algorithme de Johnson (Appliqué qu'aux FSP avec 2 machines (Utilisé dans CDS))
     def johnson(self, data):
         # La séquence issu de la 1ere machine (Insertion au debut)
@@ -192,11 +211,13 @@ class FlowShop:
     
     
     # Recherche de la permutation aprochée par l'heuristique : CDS
-    def CDS(self):
+    def CDS(self, nbSeq = None):
         
-        # Generation des (M-1) sequences
+        if (nbSeq == None): nbSeq = self.M-1
+        
+        # Generation des nbSeq sequences
         seq = []
-        for i in range(self.M-1):
+        for i in range(nbSeq):
             m1 = m2 = np.zeros(self.N)
             for j in range(i+1):
                 m1 = m1 + self.data[j, :]
@@ -297,26 +318,7 @@ class FlowShop:
             else: # tie == "First"
                 sequence = min(cands, key=lambda x: x[1])[0]
 
-        return sequence, min(cands, key=lambda x: x[1])[1]
-    
-    
-    def palmer_heuristic(self):
-
-        optimal_sequence=list(np.arange(0,self.N))
-        
-        #on calcule les poids des machines
-        weight_machine=np.zeros(self.M)
-        for j in np.arange(0,self.M):#on parcours les machines 
-            weight_machine[j]=(self.M-2*(j+1)+1)
-            
-        #on ordonne selon l'index de pente
-        weights=np.zeros(self.N)
-        for i in range(self.N):
-            for j in range(self.M):
-                weights[i]+=weight_machine[j]*self.data[j,i]
-        optimal_sequence=list(list(np.argsort(weights)+1))
-        optimal_time=self.Cmax(self.M,optimal_sequence)
-        return optimal_sequence,optimal_time    
+        return sequence, min(cands, key=lambda x: x[1])[1]   
 
 # Class Node qui représente un Job et ces caractéristiques (Niveau, Chemin, Evaluation)
 class Node(object):
