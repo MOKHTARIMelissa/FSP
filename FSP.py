@@ -6,7 +6,7 @@ import math
 from collections import deque
 
 # Class FlowShop qui défint les méthodes de résolution du FSP
-class FlowShop:
+class FlowShop2:
 
     def __init__(self, data = None):
         
@@ -192,6 +192,51 @@ class FlowShop:
         optimal_time=self.Cmax(self.M,optimal_sequence)
         return optimal_sequence,optimal_time  
     
+    
+    def Palmer_MPI(self):
+
+        optimal_sequence=list(np.arange(0,self.N))
+        
+        #on calcule les poids des machines
+        weight_machine=np.zeros(self.M)
+        for j in np.arange(0,self.M):#on parcours les machines 
+            weight_machine[j]=(self.M-2*(j+1))
+            
+        #on ordonne selon l'index de pente
+        
+        #premiere seqquence +0
+        weights=np.zeros(self.N)
+        for i in range(self.N):
+            for j in range(self.M):
+                weights[i]+=weight_machine[j]*self.data[j,i]
+        optimal_sequence=list(list(np.argsort(weights)+1))
+        optimal_time=self.Cmax(self.M,optimal_sequence)
+        
+        # deuxième sequence +1 
+        weights_1=np.zeros(self.N)
+        for i in range(self.N):
+            for j in range(self.M):
+                weights_1[i]+=(weight_machine[j]+1)*self.data[j,i]
+        optimal_sequence_1=list(list(np.argsort(weights_1)+1))
+        optimal_time_1=self.Cmax(self.M,optimal_sequence_1)
+        
+        # troisième sequence +2
+        weights_2=np.zeros(self.N)
+        for i in range(self.N):
+            for j in range(self.M):
+                weights_2[i]+=(weight_machine[j]+2)*self.data[j,i]
+        optimal_sequence_2=list(list(np.argsort(weights_2)+1))
+        optimal_time_2=self.Cmax(self.M,optimal_sequence_2)
+        
+        #on choisit la meilleure sequence
+        if(optimal_time_1<optimal_time):
+            optimal_time=optimal_time_1
+            optimal_sequence=optimal_sequence_1
+        if(optimal_time_2<optimal_time):
+            optimal_time=optimal_time_2
+            optimal_sequence=optimal_sequence_2
+        
+        return optimal_sequence,optimal_time  
     
     # L'algorithme de Johnson (Appliqué qu'aux FSP avec 2 machines (Utilisé dans CDS))
     def johnson(self, data):
