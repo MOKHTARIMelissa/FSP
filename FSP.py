@@ -2,11 +2,12 @@ import numpy as np
 import pandas as pd
 import random
 import math
+from random import randint
 
 from collections import deque
 
 # Class FlowShop qui défint les méthodes de résolution du FSP
-class FlowShop2:
+class FlowShop:
 
     def __init__(self, data = None):
         
@@ -363,7 +364,104 @@ class FlowShop2:
             else: # tie == "First"
                 sequence = min(cands, key=lambda x: x[1])[0]
 
-        return sequence, min(cands, key=lambda x: x[1])[1]   
+        return sequence, min(cands, key=lambda x: x[1])[1]  
+    
+    
+    def recuit_simule(self, init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
+        
+        #Nombre de jobs
+        n = self.N
+        
+        #Initialisation de la solution initiale
+        if (init == "Palmer"):
+            old_seq,old_cmax = self.Palmer_MPI()
+        elif (init == "NEH"):
+            old_seq,old_cmax = self.NEH_ameliore(tie = "SMM")
+        elif (init == "CDS"):
+            old_seq,old_cmax = self.CDS()
+            
+        new_seq = []       
+        delta = 0
+        
+        #Initialisation de la temperature initiale
+        T = Ti
+        
+        # numero de l'iteration
+        itr = 0
+        
+        # numero de l'iteration
+        numsol_nonaccep = 0
+        
+        # Initialisation de la fonction de voisinage
+        GenerVois = None
+        if (voisinage == "Insertion"):
+            GenerVois = self.Insertion
+        elif (voisinage == "Swap"):
+            GenerVois = self.Swap
+        elif (voisinage == "Interchange"):
+            GenerVois = self.Interchange
+               
+        # Initialisation de la fonction de maj de la temperature
+        Tupdate = None
+        if (TempUpdate == "Geometrique"):
+            Tupdate = self.updateTempGeo
+        elif (TempUpdate == "Linear"):
+            Tupdate = self.updateTempLin
+        elif (TempUpdate == "Slow"):
+            Tupdate = self.updateTempSlow
+                      
+        while (T >= Tf and  itr <= nbItrMax) : 
+            # Voisinage
+            new_seq = GenerVois(old_seq)
+                      
+            new_cmax = self.Cmax(self.M, new_seq)
+            delta = new_cmax - old_cmax
+            if delta < 0:
+                old_seq = new_seq
+                old_cmax = new_cmax
+                numsol_nonaccep = 0
+            else :
+                prob = np.exp(-(delta/T))
+                if prob > np.random.uniform(0,1):
+                    old_seq = new_seq
+                    old_cmax = new_cmax
+                    numsol_nonaccep = 0
+                else :
+                    #La solution est ignoree
+                    numsol_nonaccep += 1
+             
+            if (numsol_nonaccep > nbsolrej) :
+                T = self.updateTempGeo(T, 1/alpha)
+            elif (itr%palier == 0) :
+                T = Tupdate(T, alpha)
+            itr += 1
+
+        return old_seq, old_cmax
+                      
+      
+    def Insertion(self, seq):
+        job = seq.pop(randint(0,self.N-1)) 
+        seq.insert(randint(0,self.N-1),job)
+        return seq
+        
+    def Swap(self, seq):
+        i = randint(0,self.N-2)
+        seq[i+1], seq[i] = seq[i], seq[i+1]
+        return seq
+            
+    def Interchange(self, seq):
+        i1, i2 = random.sample(range(0, self.N - 1), 2)  
+        seq[i1], seq[i2] = seq[i2], seq[i1]
+        return seq
+
+    def updateTempGeo(self, T, alpha):
+        return T*alpha
+    
+    def updateTempLin(self, T, alpha):
+        return T - alpha
+    
+    def updateTempSlow(self, T, beta):
+        return T/(1 + beta*T) 
 
 # Class Node qui représente un Job et ces caractéristiques (Niveau, Chemin, Evaluation)
 class Node(object):
