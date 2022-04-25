@@ -3,6 +3,7 @@ import pandas as pd
 import random
 import math
 from random import randint
+import timeit
 
 from collections import deque
 
@@ -366,6 +367,8 @@ class FlowShop:
 
         return sequence, min(cands, key=lambda x: x[1])[1]  
     
+    # Simulated annealing Meta-heuristic
+    #################################################################################################################
     
     def recuit_simule(self, init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
         
@@ -462,6 +465,122 @@ class FlowShop:
     
     def updateTempSlow(self, T, beta):
         return T/(1 + beta*T) 
+    
+    
+    
+    # Itereative Local Search Meta-heuristic
+    #################################################################################################################
+    
+    # Local Search
+    def LS(self, best_sequence, best_cmax, neibourhoodType='swap', selectionStrategy = 'best'):
+        
+        # Swapping: Swap the element (i) with (i+1) ----- Neighbourhood size = N
+        if (neibourhoodType == 'swap'):
+            for i in range(self.N):
+                sigma = best_sequence.copy()
+                sigma[i], sigma[(i+1) % self.N] = sigma[(i+1) % self.N], sigma[i]
+                
+                 # Search for the best solution within the neighbourhood
+                cmax = self.Cmax(self.M, sigma)
+                if(cmax < best_cmax):
+                    best_sequence, best_cmax = sigma, cmax
+                    if(selectionStrategy == 'first'): 
+                        return best_sequence, best_cmax
+                
+        # Interchanging: Swap the element (i) with (j) ----- Neighbourhood size = N(N-1)/2
+        elif (neibourhoodType == 'interchange'):
+            for i in range(self.N-1):
+                for j in range(i+1, self.N):
+                    sigma = best_sequence.copy()
+                    sigma[i], sigma[j] = sigma[j], sigma[i]
+                    
+                    # Search for the best solution within the neighbourhood
+                    cmax = self.Cmax(self.M, sigma)
+                    if(cmax < best_cmax):
+                        best_sequence, best_cmax = sigma, cmax
+                        if(selectionStrategy == 'first'): 
+                            return best_sequence, best_cmax
+                    
+        # Insertion: Swap the element (i) with (j) ----- Neighbourhood size = (N-1)²
+        elif (neibourhoodType == 'insertion'):
+            for i in range(self.N):
+                if i==0: sup = self.N
+                else: sup = i+self.N-1
+                for j in range(i+1, sup):   
+                    sigma = best_sequence.copy()
+                    save = sigma[i]
+                    sigma.pop(i)
+                    sigma.insert(j%self.N, save)
+                    
+                    # Search for the best solution within the neighbourhood
+                    cmax = self.Cmax(self.M, sigma)
+                    if(cmax < best_cmax):
+                        best_sequence, best_cmax = sigma, cmax
+                        if(selectionStrategy == 'first'): 
+                            return best_sequence, best_cmax
+            
+        return best_sequence, best_cmax
+    
+    # Perturbation
+    def perturbation(self, sequence, perturbationType="random"):
+        
+        if (perturbationType == "random"):
+            random.shuffle(sequence)
+            
+        elif (perturbationType == "swap"):
+            pos1 = random.randint(0, len(sequence)-1)
+            j = -1
+            while (j < 0):
+                pos2=random.randint(0, len(sequence)-1)
+                if (pos1 != pos2): j = 1
+            sequence[pos1], sequence[pos2] = sequence[pos2], sequence[pos1] 
+                
+        elif (perturbationType == "insertion"):
+            element = random.randint(0, len(sequence)-1)
+            save = sequence[element]
+            j = -1
+            while (j < 0):
+                pos = random.randint(0, len(sequence)-1)
+                if (element != pos): j = 1
+            sequence.pop(element)
+            sequence.insert(pos, save)
+            
+        return sequence
+    
+    # Iterative Local Search
+    def ILS(self, init = "NEH", neibourhoodType='insertion', selectionStrategy = 'best', perturbationType="insertion", stopCriteria = 'iteration', maxCriteria = 100):
+        
+        #Initialization 
+        if (init == "Palmer"):
+            sequence, cmax = self.Palmer_MPI()
+        elif (init == "NEH"):
+            sequence, cmax = self.NEH_ameliore(tie = "SMM")
+        elif (init == "CDS"):
+            sequence, cmax = self.CDS()
+        
+        best_sequence, best_cmax  = self.LS(sequence, cmax, neibourhoodType, selectionStrategy)
+        
+        
+        if (stopCriteria == 'iteration'): 
+            criteria = 0
+        elif (stopCriteria == 'duration'): 
+            start = timeit.default_timer()
+            criteria = timeit.default_timer() - start
+            
+        while(criteria < maxCriteria ):
+            sequence = self.perturbation(best_sequence, perturbationType)
+            cmax = self.Cmax(self.M, sequence)
+            new_sequence, new_cmax = self.LS(sequence, cmax, neibourhoodType, selectionStrategy)
+            
+            if(new_cmax < best_cmax):
+                best_sequence, best_cmax = new_sequence, new_cmax
+            
+            if (stopCriteria == 'iteration'): 
+                criteria += 1
+            elif (stopCriteria == 'duration'):
+                criteria = timeit.default_timer() - start
+            
+        return best_sequence, best_cmax
 
 # Class Node qui représente un Job et ces caractéristiques (Niveau, Chemin, Evaluation)
 class Node(object):
