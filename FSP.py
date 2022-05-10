@@ -4,8 +4,14 @@ import random
 import math
 from random import randint
 import timeit
+import os
+import time
+from functools import reduce
+import numpy as np
+
 
 from collections import deque
+
 
 # Class FlowShop qui défint les méthodes de résolution du FSP
 class FlowShop:
@@ -370,7 +376,7 @@ class FlowShop:
     # Simulated annealing Meta-heuristic
     #################################################################################################################
     
-    def recuit_simule(self, init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
+    def recuit_simule(self, old_seq=None,init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
         
         #Nombre de jobs
         n = self.N
@@ -382,6 +388,9 @@ class FlowShop:
             old_seq,old_cmax = self.NEH_ameliore(tie = "SMM")
         elif (init == "CDS"):
             old_seq,old_cmax = self.CDS()
+        elif init=="":
+            old_cmax=self.Cmax(self.M,old_seq)
+            
             
         new_seq = []       
         delta = 0
@@ -548,7 +557,7 @@ class FlowShop:
         return sequence
     
     # Iterative Local Search
-    def ILS(self, init = "NEH", neibourhoodType='insertion', selectionStrategy = 'best', perturbationType="insertion", stopCriteria = 'iteration', maxCriteria = 100):
+    def ILS(self, init = "NEH",sequence=None, neibourhoodType='insertion', selectionStrategy = 'best', perturbationType="insertion", stopCriteria = 'iteration', maxCriteria = 100):
         
         #Initialization 
         if (init == "Palmer"):
@@ -557,6 +566,8 @@ class FlowShop:
             sequence, cmax = self.NEH_ameliore(tie = "SMM")
         elif (init == "CDS"):
             sequence, cmax = self.CDS()
+        elif init=="":
+            cmax=self.Cmax(self.M,sequence)
         
         best_sequence, best_cmax  = self.LS(sequence, cmax, neibourhoodType, selectionStrategy)
         
@@ -581,7 +592,412 @@ class FlowShop:
                 criteria = timeit.default_timer() - start
             
         return best_sequence, best_cmax
+    
+    # Genetic Algorithm
+    #####################################################################################################################################
+    def genetic_algorithm(self, population_number,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0, p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
+        if population_number is None:
+            population_number = self.N**2
+        if inter_population_number is None:
+            inter_population_number=population_number
+        optimal = [4534, 920, 1302]
+        opt = 0
+        no_of_jobs, no_of_machines = self.N, self.M
+        processing_time = []
+        for i in range(no_of_jobs):
+            temp = []
+            for j in range(no_of_machines):
+                temp.append(self.data[j][i])
+            processing_time.append(temp)
+        # generate an initial population proportional to no_of_jobs
+        number_of_population = population_number
+        p_crossover = p_crossover
+        p_mutation = p_mutation
 
+        # Initialize population
+        population = self.initialize_population(number_of_population,mode_init)
+        costed_population = []
+        
+        for individual in population:
+            ind_makespan = (self.Cmax(self.M,individual), individual)
+            costed_population.append(ind_makespan)
+        costed_population.sort(key=lambda x: x[0])
+
+        seq = list(map(int, costed_population[0][1]))
+        makespan = self.Cmax(self.M, seq) 
+        
+        nb_it=0
+        nb_stag=0
+        while self.critere_arret(nb_it,it_number,nb_stag,nb_stag_max,mode=mode_arret):
+            
+            # Select parents
+            parent_list,parent = self.select_parent(population,inter_population_number, mode_parent_selection)
+            childs = []
+
+            # Apply crossover to generate children
+            for parents in parent_list:
+                r = np.random.rand()
+                #print("parent boucle",parents)
+                if r < p_crossover:
+                    childs.append(self.crossover(parents,mode=mode_crossover))
+                    childs.append(self.crossover((parents[1],parents[0]),mode=mode_crossover))
+                else:
+                    childs.append(parents[0])
+                    childs.append(parents[1])
+
+            # Apply mutation operation to change the order of the n-jobs
+            mutated_childs = []
+            #print(childs)
+            for child in childs:
+                #print("boucle mutation",child)
+                r = np.random.rand()
+                if r < p_mutation:
+                    mutated_child = self.mutation(child,mode=mode_mutation)
+                    mutated_childs.append(mutated_child)
+
+            childs.extend(mutated_childs)
+            if len(childs) > 0:
+                    population=self.update_population(population,parent, childs,mode=mode_update)
+                    
+            #verify stagnation
+            makespan_an=makespan
+            costed_population = []
+            for individual in population:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_population.append(ind_makespan)
+            costed_population.sort(key=lambda x: x[0])
+            seq = list(map(int, costed_population[0][1]))
+            makespan = self.Cmax(self.M, seq)
+            if makespan_an<=makespan:
+                nb_stag+=1
+            else:
+                nb_stag=0
+                
+            nb_it+=1
+            
+        if mode_sorti=="recuit_simule":
+            pop = []
+            for individual in population:
+                ind = self.recuit_simule(old_seq=list(individual),init ="")[0]
+                pop.append(ind)
+            
+        else:
+            pop=population
+            
+        costed_population = []
+        for individual in pop:
+            ind_makespan = (self.Cmax(self.M,individual), individual)
+            costed_population.append(ind_makespan)
+        costed_population.sort(key=lambda x: x[0])
+
+        seq = list(map(int, costed_population[0][1]))
+        makespan = self.Cmax(self.M, seq)  
+        return seq, makespan 
+
+    
+    def initialize_population(self,population_size,mode="random"):
+        number_of_jobs=self.N
+        if mode=="random" :
+            population = []
+            i = 0
+            j=0
+            while i < population_size:
+                individual = list(np.random.permutation(number_of_jobs))
+                for pos in range(number_of_jobs):
+                    individual[pos]=individual[pos]+1
+                if individual not in population or j>20:
+                    population.append(individual)
+                    i += 1
+                    j=0
+                else:
+                    j+=1
+                    
+        elif mode=="palmer":
+            population = []
+            i = 0
+            j=0
+            seq, cmax = self.palmer_heuristic()
+            population.append(list(seq))
+            while i < (population_size-1):
+                ind=self.mutation(list(seq))
+                if(ind not in population or j>20):
+                    population.append(ind)
+                    i+=1
+                    j=0
+                else:
+                    j+=1
+            
+        elif mode=="NEH":                               
+            population = []
+            i = 0
+            j=0
+            seq, cmax = self.NEH_ameliore()
+            population.append(list(seq))
+            while i < (population_size-1):
+                ind=self.mutation(list(seq))
+                if(ind not in population or j>20 ):
+                    population.append(ind)
+                    i+=1
+                    j=0
+                else:
+                    j+=1
+        elif mode=="CDS":  
+            
+            population = []
+            i = 0
+            j=0
+            seq, cmax = self.CDS()
+            population.append(list(seq))
+            while i < (population_size-1):
+                ind=self.mutation(list(seq))
+                if(ind not in population or j>20):
+                    population.append(ind)
+                    i+=1
+                    j=0
+                else:
+                    j+=1
+
+        return population
+
+    # Two-point crossover is that the set of jobs between 
+    # two randomly selected points is always inherited from one parent to the child, 
+    # and the other jobs are placed in the same manner as the one-point crossover. 
+    def crossover(self,parents,mode="2_points"):
+        parent1 = parents[0]
+        parent2 = parents[1]
+        if mode=="2_points":
+            length_of_parent = self.N
+            first_point = int(length_of_parent / 2 - length_of_parent / 4)
+            second_point = int(length_of_parent - first_point)
+
+            intersect = parent1[first_point:second_point]
+            #print(" FP: ",first_point," SP: ",second_point," lenght: ",length_of_parent)
+            #print("intersect",intersect)
+            child = []
+            index = 0
+            #print("parents",parents)
+            for pos2 in range(len(parent2)):
+                if first_point <= index < second_point:
+                    child.extend(intersect)
+                    #print("1  /",child)
+                    index = second_point
+                if parent2[pos2] not in intersect:
+                        child.append(parent2[pos2])
+                        #print("2  /",child)
+                        index += 1
+            return child
+        elif mode=="uniforme":
+            mask = np.random.randint(2, size=self.N)
+            child = np.zeros(self.N,dtype=int)
+            for i in range(len(mask)):
+                if mask[i] == 1:
+                    child[i]=parent1[i]
+                else:
+                    child[i]=parent2[i]
+            return child
+
+    # apply mutation to an existing solution using swap move operator
+    def mutation(self,solution,mode="swap"):
+        
+        if mode=="interchange":
+            # pick 2 positions i and j to swap randomly
+            return self.Interchange(solution)
+        elif mode=="swap":
+            # pick 2 positions i and i+1 to interchange randomly
+            #print("swap",solution)
+            return self.Swap(solution)
+        elif mode=="local_search":
+            sol,c=self.LS(list(solution),self.Cmax(self.M,solution))
+            return sol
+
+            #sol,c =self.ILS(sequence=list(solution),init="")
+            return sol
+        elif mode=="recuit_simule":
+            sol,c=self.recuit_simule(old_seq=list(solution),init ="")
+            return sol
+            
+            
+
+
+    # Selects parent 
+    def select_parent(self,population,inter_population_number,mode="tournois"):
+        parents=[]
+        processing_time=self.data
+        number_of_jobs=self.N
+        number_of_machines=self.M
+        if mode=="tournois":
+            parent_pairs = []
+            # randomly choose how many parent pairs will be selected
+            parent_pair_count = random.randint(2, int(len(population)/2))
+            for k in range(parent_pair_count):
+                parent1 = self.binary_tournament(population)
+                parent2 = self.binary_tournament(population)
+                if parent1 != parent2 and (parent1, parent2) not in parent_pairs and (parent2, parent1) not in parent_pairs:
+                    parent_pairs.append((parent1, parent2))
+                    if parent1 not in parents:
+                        parents.append(parent1)
+                    if parent2 not in parents:
+                        parents.append(parent2)
+ 
+        elif mode=="random":
+            parent_pairs = []
+            # randomly choose how many parent pairs will be selected
+            parent_pair_count = random.randint(2, int(len(population)/2))
+            for k in range(parent_pair_count):
+                parent1 = random.choice(population)
+                parent2 = random.choice(population)
+                #print("parents ",parent1,"2 ",parent1,"pairs",parent_pairs)
+                if parent1 != parent2 and (parent1, parent2) not in parent_pairs and (parent2, parent1) not in parent_pairs:
+                    parent_pairs.append((parent1, parent2))
+                    if parent1 not in parents:
+                        parents.append(parent1)
+                    if parent2 not in parents:
+                        parents.append(parent2)
+
+        elif mode=="elit":
+            parent_pairs=[]
+            parent_pair_count = random.randint(2, int(len(population)/2))
+            pop_cmax=[self.Cmax(number_of_machines,indiv) for indiv in population]
+            ordre=np.argsort(pop_cmax)
+            pop=[population[pos] for pos in ordre[:inter_population_number] ]
+
+            for k in range(parent_pair_count):
+                parent1 = random.choice(pop)
+                parent2 = random.choice(pop)
+                if parent1 != parent2 and (parent1, parent2) not in parent_pairs and (parent2, parent1) not in parent_pairs:
+                    parent_pairs.append((parent1, parent2))
+                    if parent1 not in parents:
+                        parents.append(parent1)
+                    if parent2 not in parents:
+                        parents.append(parent2)                  
+
+        elif mode=="roulette":
+            parent_pairs=[]
+            parent_pair_count = random.randint(2, int(len(population)/2))
+            pop_cmax=[self.Cmax(number_of_machines,indiv) for indiv in population]   
+            pop_cmax=np.max(pop_cmax)-pop_cmax+1
+
+            for k in range(parent_pair_count):
+                parent1 = random.choices(population, weights=pop_cmax,k=1)[0]
+                parent2 = random.choices(population, weights=pop_cmax,k=1)[0]
+                if parent1 != parent2 and (parent1, parent2) not in parent_pairs and (parent2, parent1) not in parent_pairs:
+                    parent_pairs.append((parent1, parent2))
+                    if parent1 not in parents:
+                        parents.append(parent1)
+                    if parent2 not in parents:
+                        parents.append(parent2)           
+            
+            #parent_pairs=[random.choices(population, weights=pop_cmax,k=2) for pos in range(parent_pair_count)]
+           
+
+        elif mode=="ranking":
+            parent_pairs=[]
+            parent_pair_count = random.randint(2, int(len(population)/2))
+            pop_cmax=[self.Cmax(number_of_machines,indiv) for indiv in population]   
+            ordre=np.argsort(pop_cmax)
+            ordre=np.flip(ordre)
+            pop=[population[pos] for pos in ordre[:inter_population_number]]
+            
+            for k in range(parent_pair_count):
+                parent1 = random.choices(pop, weights=(ordre[:inter_population_number]+1),k=1)[0]
+                parent2 = random.choices(pop, weights=(ordre[:inter_population_number]+1),k=1)[0]
+                if parent1 != parent2 and (parent1, parent2) not in parent_pairs:
+                    parent_pairs.append((parent1, parent2))
+                    if parent1 not in parents:
+                        parents.append(parent1)
+                    if parent2 not in parents:
+                        parents.append(parent2)             
+            
+            #parent_pairs=[random.choices(pop, weights=(ordre[:inter_population_number]+1),k=2) for pos in range(parent_pair_count)]
+        #print("parents selectparent",parent_pairs)
+        return parent_pairs,parents        
+
+    def binary_tournament(self, population):
+        parent = []
+        number_of_jobs=self.N
+        number_of_machines=self.M
+        processing_time=self.data
+        candidates = random.sample(population, 2)
+        makespan1 = self.Cmax(self.M,candidates[0])
+        makespan2 = self.Cmax(self.M,candidates[1])
+        if makespan1 < makespan2:
+            parent = list(candidates[0])
+        else:
+            parent = list(candidates[1])
+        #print("parent binarry",parent)
+        return parent
+
+    def update_population(self,population,parents,children,mode="enfants"):
+        processing_time=self.data
+        no_of_jobs=self.N
+        no_of_machines=self.M
+        if mode=="enfants":
+            costed_children=[]
+            for individual in children:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_children.append(ind_makespan)
+            costed_children.sort(key=lambda x: x[0])
+            lenght=len(parents)
+            listSub = [elem for elem in population if elem not in parents]
+            lenght=len(parents)
+            listSub.extend(costed_children[:lenght])
+            population=listSub
+
+            
+        elif mode=="enfants_population":
+            costed_population = []
+            for individual in population:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_population.append(ind_makespan)
+
+            for individual in children:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_population.append(ind_makespan) 
+            costed_population.sort(key=lambda x: x[0])    
+            lenght=len(population)
+            population=[]
+            population=costed_population[:lenght]
+            
+        elif mode=="least_good":
+            
+            costed_population = []
+            for individual in population:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_population.append(ind_makespan)
+            costed_population.sort(key=lambda x: x[0], reverse=True)
+
+            costed_children = []
+            for individual in children:
+                ind_makespan = (self.Cmax(self.M,individual), individual)
+                costed_children.append(ind_makespan)
+            costed_children.sort(key=lambda x: x[0])
+            
+            if len(children)>= int(0.5*len(population)):
+                lenght=int(0.5*len(population))
+            else:
+                lenght=int(len(children))
+          
+            #on supprime les moins bons et on les remplace par les enfants
+            for child in costed_children[:lenght]:
+                if (list(child[1]) not in population):
+                    population.remove(costed_population[0][1])
+                    costed_population.remove(costed_population[0])       
+                    population.append(list(child[1]))
+                #on peut ajouter une verification si les enfants sont toujours plus bons que la population sinon break
+            return population 
+
+          
+    def critere_arret(self,nb_it,nb_it_max,nb_stag,nb_stag_max,mode="and"):
+        if mode=="and":
+            return (nb_it<nb_it_max and nb_stag<nb_stag_max)
+        elif mode=="stagnation":
+            return (nb_stag<nb_stag_max)
+        elif mode=="iteration":
+            return (nb_it<nb_it_max)
+        
+        
+    
+    
 # Class Node qui représente un Job et ces caractéristiques (Niveau, Chemin, Evaluation)
 class Node(object):
     
