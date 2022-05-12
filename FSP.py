@@ -595,7 +595,7 @@ class FlowShop:
     
     # Genetic Algorithm
     #####################################################################################################################################
-    def genetic_algorithm(self, population_number,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0, p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
+    def genetic_algorithm(self, population_number,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0, p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants_population",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
         if population_number is None:
             population_number = self.N**2
         if inter_population_number is None:
@@ -611,8 +611,6 @@ class FlowShop:
             processing_time.append(temp)
         # generate an initial population proportional to no_of_jobs
         number_of_population = population_number
-        p_crossover = p_crossover
-        p_mutation = p_mutation
 
         # Initialize population
         population = self.initialize_population(number_of_population,mode_init)
@@ -622,7 +620,8 @@ class FlowShop:
             ind_makespan = (self.Cmax(self.M,individual), individual)
             costed_population.append(ind_makespan)
         costed_population.sort(key=lambda x: x[0])
-
+        
+        #Initialize best solution
         seq = list(map(int, costed_population[0][1]))
         makespan = self.Cmax(self.M, seq) 
         
@@ -637,7 +636,7 @@ class FlowShop:
             # Apply crossover to generate children
             for parents in parent_list:
                 r = np.random.rand()
-                #print("parent boucle",parents)
+                
                 if r < p_crossover:
                     childs.append(self.crossover(parents,mode=mode_crossover))
                     childs.append(self.crossover((parents[1],parents[0]),mode=mode_crossover))
@@ -647,17 +646,17 @@ class FlowShop:
 
             # Apply mutation operation to change the order of the n-jobs
             mutated_childs = []
-            #print(childs)
             for child in childs:
-                #print("boucle mutation",child)
                 r = np.random.rand()
                 if r < p_mutation:
                     mutated_child = self.mutation(child,mode=mode_mutation)
                     mutated_childs.append(mutated_child)
 
             childs.extend(mutated_childs)
+            
+            #update population
             if len(childs) > 0:
-                    population=self.update_population(population,parent, childs,mode=mode_update)
+                    population=self.update_population(population,parent,childs,mode_update)
                     
             #verify stagnation
             makespan_an=makespan
@@ -674,7 +673,7 @@ class FlowShop:
                 nb_stag=0
                 
             nb_it+=1
-            
+        #hybridation with LS or RS
         if mode_sorti=="recuit_simule":
             pop = []
             for individual in population:
@@ -682,11 +681,17 @@ class FlowShop:
                 pop.append(ind)
             
         else:
-            pop=population
+            if mode_sorti=="local_search":
+                pop = []
+                for individual in population:
+                    ind = self.LS(list(individual),self.Cmax(self.M,individual))[0]
+                    pop.append(ind)   
+            else:
+                pop=population
             
         costed_population = []
         for individual in pop:
-            ind_makespan = (self.Cmax(self.M,individual), individual)
+            ind_makespan = (self.Cmax(self.M,list(individual)), individual)
             costed_population.append(ind_makespan)
         costed_population.sort(key=lambda x: x[0])
 
@@ -716,8 +721,10 @@ class FlowShop:
             population = []
             i = 0
             j=0
+            #generate the first ind to work with
             seq, cmax = self.palmer_heuristic()
             population.append(list(seq))
+            #generate (n-1) ind using mutation 
             while i < (population_size-1):
                 ind=self.mutation(list(seq))
                 if(ind not in population or j>20):
@@ -759,7 +766,7 @@ class FlowShop:
 
         return population
 
-    # Two-point crossover is that the set of jobs between 
+    # Two-point/one-point crossover is that the set of jobs between 
     # two randomly selected points is always inherited from one parent to the child, 
     # and the other jobs are placed in the same manner as the one-point crossover. 
     def crossover(self,parents,mode="2_points"):
@@ -771,53 +778,43 @@ class FlowShop:
             second_point = int(length_of_parent - first_point)
 
             intersect = parent1[first_point:second_point]
-            #print(" FP: ",first_point," SP: ",second_point," lenght: ",length_of_parent)
-            #print("intersect",intersect)
             child = []
             index = 0
-            #print("parents",parents)
             for pos2 in range(len(parent2)):
                 if first_point <= index < second_point:
                     child.extend(intersect)
-                    #print("1  /",child)
                     index = second_point
                 if parent2[pos2] not in intersect:
                         child.append(parent2[pos2])
-                        #print("2  /",child)
                         index += 1
-            return child
-        elif mode=="uniforme":
-            mask = np.random.randint(2, size=self.N)
-            child = np.zeros(self.N,dtype=int)
-            for i in range(len(mask)):
-                if mask[i] == 1:
-                    child[i]=parent1[i]
-                else:
-                    child[i]=parent2[i]
-            return child
+            return list(child)
+        elif mode=="1_point":
+            length_of_parent = self.N
+            first_point = int(length_of_parent / 2)               
+            intersect = parent1[:first_point]
+            child = intersect
+            for pos in range(len(parent2)):
+                if parent1[pos] not in child:
+                     child.append(parent1[pos])
+            return list(child)
 
-    # apply mutation to an existing solution using swap move operator
+    # apply mutation to an existing solution using swap, interchange,Ls,RS
     def mutation(self,solution,mode="swap"):
         
         if mode=="interchange":
             # pick 2 positions i and j to swap randomly
-            return self.Interchange(solution)
+            return list(self.Interchange(solution))
         elif mode=="swap":
             # pick 2 positions i and i+1 to interchange randomly
-            #print("swap",solution)
-            return self.Swap(solution)
+            return list(self.Swap(solution))
         elif mode=="local_search":
+            #LS on the neighberhod of the ind
             sol,c=self.LS(list(solution),self.Cmax(self.M,solution))
-            return sol
-
-            #sol,c =self.ILS(sequence=list(solution),init="")
-            return sol
+            return list(sol)
         elif mode=="recuit_simule":
+            #apply RS to the ind
             sol,c=self.recuit_simule(old_seq=list(solution),init ="")
-            return sol
-            
-            
-
+            return list(sol)
 
     # Selects parent 
     def select_parent(self,population,inter_population_number,mode="tournois"):
@@ -825,6 +822,7 @@ class FlowShop:
         processing_time=self.data
         number_of_jobs=self.N
         number_of_machines=self.M
+        #randomly chosing 2 parents and then choose the best one as the first parent and then choose another one 
         if mode=="tournois":
             parent_pairs = []
             # randomly choose how many parent pairs will be selected
@@ -838,7 +836,7 @@ class FlowShop:
                         parents.append(parent1)
                     if parent2 not in parents:
                         parents.append(parent2)
- 
+         #randomly choose parents
         elif mode=="random":
             parent_pairs = []
             # randomly choose how many parent pairs will be selected
@@ -846,14 +844,13 @@ class FlowShop:
             for k in range(parent_pair_count):
                 parent1 = random.choice(population)
                 parent2 = random.choice(population)
-                #print("parents ",parent1,"2 ",parent1,"pairs",parent_pairs)
                 if parent1 != parent2 and (parent1, parent2) not in parent_pairs and (parent2, parent1) not in parent_pairs:
                     parent_pairs.append((parent1, parent2))
                     if parent1 not in parents:
                         parents.append(parent1)
                     if parent2 not in parents:
                         parents.append(parent2)
-
+        #we choose the best individuals as parents 
         elif mode=="elit":
             parent_pairs=[]
             parent_pair_count = random.randint(2, int(len(population)/2))
@@ -870,7 +867,7 @@ class FlowShop:
                         parents.append(parent1)
                     if parent2 not in parents:
                         parents.append(parent2)                  
-
+        #the weight of each indiv is =the max of Cmax in the population - the Cmax of the indiv +1
         elif mode=="roulette":
             parent_pairs=[]
             parent_pair_count = random.randint(2, int(len(population)/2))
@@ -885,11 +882,8 @@ class FlowShop:
                     if parent1 not in parents:
                         parents.append(parent1)
                     if parent2 not in parents:
-                        parents.append(parent2)           
-            
-            #parent_pairs=[random.choices(population, weights=pop_cmax,k=2) for pos in range(parent_pair_count)]
-           
-
+                        parents.append(parent2)  
+        #the weight of each ind is its rank( the best has the rank N , and the worst 1)
         elif mode=="ranking":
             parent_pairs=[]
             parent_pair_count = random.randint(2, int(len(population)/2))
@@ -906,10 +900,7 @@ class FlowShop:
                     if parent1 not in parents:
                         parents.append(parent1)
                     if parent2 not in parents:
-                        parents.append(parent2)             
-            
-            #parent_pairs=[random.choices(pop, weights=(ordre[:inter_population_number]+1),k=2) for pos in range(parent_pair_count)]
-        #print("parents selectparent",parent_pairs)
+                        parents.append(parent2)    
         return parent_pairs,parents        
 
     def binary_tournament(self, population):
@@ -926,24 +917,28 @@ class FlowShop:
             parent = list(candidates[1])
         #print("parent binarry",parent)
         return parent
-
-    def update_population(self,population,parents,children,mode="enfants"):
+    
+    #To update the population after each iteration
+    def update_population(self,population,parents,children,mode="enfants_population"):
         processing_time=self.data
         no_of_jobs=self.N
         no_of_machines=self.M
+        #The childreen replace the parents 
         if mode=="enfants":
             costed_children=[]
             for individual in children:
                 ind_makespan = (self.Cmax(self.M,individual), individual)
                 costed_children.append(ind_makespan)
             costed_children.sort(key=lambda x: x[0])
-            lenght=len(parents)
-            listSub = [elem for elem in population if elem not in parents]
-            lenght=len(parents)
-            listSub.extend(costed_children[:lenght])
-            population=listSub
-
+            j=0
+            for i in range(min(len(parents),len(children))):
+                if parents[i] in population:
+                    population.remove(parents[i])
+                    population.append(costed_children[j][1])
+                    j+=1
             
+            return population
+        # We chose the best beetwen childreen and actuel population
         elif mode=="enfants_population":
             costed_population = []
             for individual in population:
@@ -955,9 +950,12 @@ class FlowShop:
                 costed_population.append(ind_makespan) 
             costed_population.sort(key=lambda x: x[0])    
             lenght=len(population)
-            population=[]
-            population=costed_population[:lenght]
-            
+            new_pop=[]
+            for i in range(len(population)):
+                new_pop.append(costed_population[i][1])
+            return new_pop
+        
+        #the children replace the worst indiv in the population 
         elif mode=="least_good":
             
             costed_population = []
@@ -984,9 +982,10 @@ class FlowShop:
                     costed_population.remove(costed_population[0])       
                     population.append(list(child[1]))
                 #on peut ajouter une verification si les enfants sont toujours plus bons que la population sinon break
-            return population 
+        return population 
+        
 
-          
+    #Stop cond of the iterations.    
     def critere_arret(self,nb_it,nb_it_max,nb_stag,nb_stag_max,mode="and"):
         if mode=="and":
             return (nb_it<nb_it_max and nb_stag<nb_stag_max)
