@@ -388,6 +388,7 @@ class FlowShop:
             old_seq,old_cmax = self.NEH_ameliore(tie = "SMM")
         elif (init == "CDS"):
             old_seq,old_cmax = self.CDS()
+            old_seq = old_seq.tolist()
         elif init=="":
             old_cmax=self.Cmax(self.M,old_seq)
             
