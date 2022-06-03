@@ -596,7 +596,7 @@ class FlowShop:
     
     # Genetic Algorithm
     #####################################################################################################################################
-    def genetic_algorithm(self,seq=None, population_number,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0, p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants_population",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
+    def genetic_algorithm(self,seq=None, population_number = 100,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0,p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants_population",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
         if population_number is None:
             population_number = self.N**2
         if inter_population_number is None:
