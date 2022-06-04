@@ -376,21 +376,21 @@ class FlowShop:
     # Simulated annealing Meta-heuristic
     #################################################################################################################
     
-    def recuit_simule(self, old_seq=None,init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
+    def recuit_simule(self, seq=None,init = "NEH", voisinage = "Insertion", TempUpdate = "Geometrique", palier = 1, nbsolrej = math.inf , nbItrMax = 5000, Ti = 700,Tf = 2 ,alpha = 0.9):
         
         #Nombre de jobs
         n = self.N
         
         #Initialisation de la solution initiale
         if (init == "Palmer"):
-            old_seq,old_cmax = self.Palmer_MPI()
+            seq,old_cmax = self.Palmer_MPI()
         elif (init == "NEH"):
-            old_seq,old_cmax = self.NEH_ameliore(tie = "SMM")
+            seq,old_cmax = self.NEH_ameliore(tie = "SMM")
         elif (init == "CDS"):
-            old_seq,old_cmax = self.CDS()
-            old_seq = old_seq.tolist()
+            seq,old_cmax = self.CDS()
+            seq = seq.tolist()
         elif init=="":
-            old_cmax=self.Cmax(self.M,old_seq)
+            old_cmax=self.Cmax(self.M,seq)
             
             
         new_seq = []       
@@ -425,18 +425,18 @@ class FlowShop:
                       
         while (T >= Tf and  itr <= nbItrMax) : 
             # Voisinage
-            new_seq = GenerVois(old_seq)
+            new_seq = GenerVois(seq)
                       
             new_cmax = self.Cmax(self.M, new_seq)
             delta = new_cmax - old_cmax
             if delta < 0:
-                old_seq = new_seq
+                seq = new_seq
                 old_cmax = new_cmax
                 numsol_nonaccep = 0
             else :
                 prob = np.exp(-(delta/T))
                 if prob > np.random.uniform(0,1):
-                    old_seq = new_seq
+                    seq = new_seq
                     old_cmax = new_cmax
                     numsol_nonaccep = 0
                 else :
@@ -449,7 +449,7 @@ class FlowShop:
                 T = Tupdate(T, alpha)
             itr += 1
 
-        return old_seq, old_cmax
+        return seq, old_cmax
                       
       
     def Insertion(self, seq):
@@ -558,19 +558,19 @@ class FlowShop:
         return sequence
     
     # Iterative Local Search
-    def ILS(self, init = "NEH",sequence=None, neibourhoodType='insertion', selectionStrategy = 'best', perturbationType="insertion", stopCriteria = 'iteration', maxCriteria = 100):
+    def ILS(self, init = "NEH",seq=None, neibourhoodType='insertion', selectionStrategy = 'best', perturbationType="insertion", stopCriteria = 'iteration', maxCriteria = 100):
         
         #Initialization 
         if (init == "Palmer"):
-            sequence, cmax = self.Palmer_MPI()
+            seq, cmax = self.Palmer_MPI()
         elif (init == "NEH"):
-            sequence, cmax = self.NEH_ameliore(tie = "SMM")
+            seq, cmax = self.NEH_ameliore(tie = "SMM")
         elif (init == "CDS"):
-            sequence, cmax = self.CDS()
+            seq, cmax = self.CDS()
         elif init=="":
-            cmax=self.Cmax(self.M,sequence)
+            cmax=self.Cmax(self.M,seq)
         
-        best_sequence, best_cmax  = self.LS(sequence, cmax, neibourhoodType, selectionStrategy)
+        best_sequence, best_cmax  = self.LS(seq, cmax, neibourhoodType, selectionStrategy)
         
         
         if (stopCriteria == 'iteration'): 
@@ -580,9 +580,9 @@ class FlowShop:
             criteria = timeit.default_timer() - start
             
         while(criteria < maxCriteria ):
-            sequence = self.perturbation(best_sequence, perturbationType)
-            cmax = self.Cmax(self.M, sequence)
-            new_sequence, new_cmax = self.LS(sequence, cmax, neibourhoodType, selectionStrategy)
+            seq = self.perturbation(best_sequence, perturbationType)
+            cmax = self.Cmax(self.M, seq)
+            new_sequence, new_cmax = self.LS(seq, cmax, neibourhoodType, selectionStrategy)
             
             if(new_cmax < best_cmax):
                 best_sequence, best_cmax = new_sequence, new_cmax
@@ -596,7 +596,7 @@ class FlowShop:
     
     # Genetic Algorithm
     #####################################################################################################################################
-    def genetic_algorithm(self, population_number,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0, p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants_population",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
+    def genetic_algorithm(self,seq=None, population_number = 100,nb_stag_max=50,inter_population_number=100,it_number=5000, p_crossover=1.0,p_mutation=1.0,mode_init="random",mode_parent_selection="random",mode_mutation="swap",mode_update="enfants_population",mode_arret="and",mode_crossover="2_points", mode_sorti="None"):
         if population_number is None:
             population_number = self.N**2
         if inter_population_number is None:
@@ -614,7 +614,7 @@ class FlowShop:
         number_of_population = population_number
 
         # Initialize population
-        population = self.initialize_population(number_of_population,mode_init)
+        population = self.initialize_population(number_of_population,mode_init,seq)
         costed_population = []
         
         for individual in population:
@@ -678,7 +678,7 @@ class FlowShop:
         if mode_sorti=="recuit_simule":
             pop = []
             for individual in population:
-                ind = self.recuit_simule(old_seq=list(individual),init ="")[0]
+                ind = self.recuit_simule(seq=list(individual),init ="")[0]
                 pop.append(ind)
             
         else:
@@ -701,8 +701,24 @@ class FlowShop:
         return seq, makespan 
 
     
-    def initialize_population(self,population_size,mode="random"):
+    def initialize_population(self,population_size,mode="random",seq=None):
         number_of_jobs=self.N
+        if mode=="init":
+            population = []
+            i = 0
+            j=0
+            #Use the initial seq to be the first ind to work with
+            population.append(list(seq))
+            #generate (n-1) ind using mutation 
+            while i < (population_size-1):
+                ind=self.mutation(list(seq))
+                if(ind not in population or j>20):
+                    population.append(ind)
+                    i+=1
+                    j=0
+                else:
+                    j+=1
+            
         if mode=="random" :
             population = []
             i = 0
@@ -814,7 +830,7 @@ class FlowShop:
             return list(sol)
         elif mode=="recuit_simule":
             #apply RS to the ind
-            sol,c=self.recuit_simule(old_seq=list(solution),init ="")
+            sol,c=self.recuit_simule(seq=list(solution),init ="")
             return list(sol)
 
     # Selects parent 

@@ -39,7 +39,7 @@ class RandomSearch:
 
         data = []
         
-        for i in range(1, nb_ite): 
+        for i in range(1, nb_ite + 1): 
             list_result = []
             for elem in param:
                 list_result.append(random.choice(param[elem]))
