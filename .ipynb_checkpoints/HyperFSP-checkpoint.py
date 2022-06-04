@@ -209,6 +209,7 @@ class HyperFSP:
                 'N': flowshop.N,
                 'M':flowshop.M,
                 'best_heurestic':best_heurestic,
+                'best_heurestic_name':[elem.__name__ for elem in best_heurestic],
                 'best_param':best_param,
                 'best_cmax':best_cmax,
                 'best_seqFSP':best_seqFSP
