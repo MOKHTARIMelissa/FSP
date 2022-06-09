@@ -108,7 +108,7 @@ class HyperFSP:
         best_heurestic = [heuristics[best_sequence[i]] for i in range(len(best_sequence))]
         best_param = [parameters[best_sequence[i]] for i in range(len(best_sequence))]
         
-        return best_heurestic, best_param, best_cmax, best_seqFSP
+        return best_sequence, best_heurestic, best_param, best_cmax, best_seqFSP
                             
                             
     def cmaxSeq(self, sequence, heuristics, parameters):
@@ -122,12 +122,12 @@ class HyperFSP:
                             
         return seqFSP, cmax
     
-    def entrainement(self,nbHeurstic=2, neibourhoodType='insertion', selectionStrategy = 'best', stopCriteria = 'duration', maxCriteria = 1, nb_iter_LS = 1):
+    def entrainement(self, nbHeurstic=3, neibourhoodType='insertion', selectionStrategy = 'best', stopCriteria = 'duration', maxCriteria = 10, nb_iter_LS = 5):
         #on parcours les fichiers contenant les instances
-        files=os.listdir("./Instances_Taillard_Entrainement")
+        files=os.listdir("./Instances_Entrainement")
         for filename in files:
 
-            data=np.loadtxt("./Instances_Taillard_Entrainement/"+filename)
+            data=np.loadtxt("./Instances_Entrainement/"+filename)
             print(filename)
             flowshop = fsp.FlowShop(data)
             heuristics = [
@@ -202,12 +202,13 @@ class HyperFSP:
             #Initialization 
             sequence = [random.randint(0, len(heuristics)-1) for i in range(nbHeurstic)]
             #lancement of the hyperheuristic
-            best_heurestic, best_param, best_cmax, best_seqFSP=self.ILS(sequence=sequence,nbHeurstic=nbHeurstic, heuristics=heuristics, parameters=parameters, neibourhoodType=neibourhoodType, selectionStrategy = selectionStrategy , stopCriteria = stopCriteria, maxCriteria = maxCriteria, nb_iter_LS = nb_iter_LS)
+            best_sequence, best_heurestic, best_param, best_cmax, best_seqFSP=self.ILS(sequence=sequence,nbHeurstic=nbHeurstic, heuristics=heuristics, parameters=parameters, neibourhoodType=neibourhoodType, selectionStrategy = selectionStrategy , stopCriteria = stopCriteria, maxCriteria = maxCriteria, nb_iter_LS = nb_iter_LS)
             #Serialization
             data = {
                 'instance': flowshop.data,
                 'N': flowshop.N,
                 'M':flowshop.M,
+                'best_sequence': best_sequence,
                 'best_heurestic':best_heurestic,
                 'best_heurestic_name':[elem.__name__ for elem in best_heurestic],
                 'best_param':best_param,
@@ -215,6 +216,101 @@ class HyperFSP:
                 'best_seqFSP':best_seqFSP
             }
             filename='data.pickle'
+            self.Serialization(data,filename)   
+            
+            
+############################################ Test algorithm ###################################################################################
+            
+    def test(self, data, neibourhoodType='insertion', selectionStrategy = 'best', stopCriteria = 'duration', maxCriteria = 10, nb_iter_LS = 5):
+
+            flowshop = fsp.FlowShop(data)
+            heuristics = [
+                          flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, flowshop.recuit_simule, 
+
+                          flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, 
+                          flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS, flowshop.ILS,   
+
+                          flowshop.genetic_algorithm
+                         ]
+
+            parameters = [
+                # Recuit simulé
+                { "init": "NEH", "voisinage": "Insertion", "TempUpdate": "Geometrique", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Insertion", "TempUpdate": "Linear", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Insertion", "TempUpdate": "Slow", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Swap", "TempUpdate": "Geometrique", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Swap", "TempUpdate": "Linear", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Swap", "TempUpdate": "Slow", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Interchange", "TempUpdate": "Geometrique", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Interchange", "TempUpdate": "Linear", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+                { "init": "NEH", "voisinage": "Interchange", "TempUpdate": "Slow", "palier": 2, "nbsolrej": 40, "nbItrMax": 5200, "Ti": 550, "Tf": 4, "alpha": 0.3},
+
+                # ILS
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'best', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'best', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'best', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'first', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'first', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'insertion', "selectionStrategy": 'first', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'best', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'best', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'best', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'first', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'first', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'swap', "selectionStrategy": 'first', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'best', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'best', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'best', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'first', "perturbationType": "insertion", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'first', "perturbationType": "swap", "stopCriteria": 'iteration', "maxCriteria": 200  },
+                { "init": "NEH", "neibourhoodType": 'interchange', "selectionStrategy": 'first', "perturbationType": "random", "stopCriteria": 'iteration', "maxCriteria": 200  },
+
+                # AG
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "swap", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "interchange", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "local_search", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "2_points", "mode_sorti": "local_search"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "None"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "recuit_simule"},
+                {  "population_number": 200, "nb_stag_max" : 40, "it_number" : 120, "p_crossover": 0.6, "p_mutation": 0.8, "mode_init": "random", "mode_parent_selection": "tournois", "mode_mutation": "recuit_simule", "mode_update": "enfants", "mode_arret": "iteration", "mode_crossover": "1_point", "mode_sorti": "local_search"},
+
+            ]
+            #ILS:
+            #Initialization 
+            filename='data.pickle'
+            sequence = self.readMemory(flowshop.N, flowshop.M, filename)
+            nbHeurstic = len(sequence)
+            #lancement of the hyperheuristic
+            best_sequence, best_heurestic, best_param, best_cmax, best_seqFSP=self.ILS(sequence=sequence,nbHeurstic=nbHeurstic, heuristics=heuristics, parameters=parameters, neibourhoodType=neibourhoodType, selectionStrategy = selectionStrategy , stopCriteria = stopCriteria, maxCriteria = maxCriteria, nb_iter_LS = nb_iter_LS)
+            #Serialization
+            data = {
+                'instance': flowshop.data,
+                'N': flowshop.N,
+                'M':flowshop.M,
+                'best_sequence': best_sequence,
+                'best_heurestic':best_heurestic,
+                'best_heurestic_name':[elem.__name__ for elem in best_heurestic],
+                'best_param':best_param,
+                'best_cmax':best_cmax,
+                'best_seqFSP':best_seqFSP
+            }
             self.Serialization(data,filename)            
             
     
@@ -239,8 +335,25 @@ class HyperFSP:
                 except EOFError:
                     break
         f.close()    
-        return data                           
-                            
+        return data    
+    
+    #Lecture de la seq à partir de la mémoire en se basant sur N et M
+    def readMemory(self, N, M, filename):
+        memory = self.Desserialization(data=[], filename=filename)
+
+        found = False
+        for solution in memory:
+            if solution.get('N') == N and solution.get('M') == M:
+                found = True
+                targetSolution = solution
+        if found:
+            sequence = targetSolution.get('best_sequence')
+        else:
+            nbHeuristic = len(solution.get('best_heurestic'))
+            sequence = [random.randint(0, nbHeuristic-1) for i in range(nbHeuristic)]
+
+        return sequence
+
                             
                             
                             
